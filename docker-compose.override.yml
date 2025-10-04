@@ -1,0 +1,62 @@
+services:
+
+  api-server:
+    networks:
+      - ndsnet
+
+  scheduler:
+    networks:
+      - ndsnet
+
+  triggerer:
+    networks:
+      - ndsnet
+  
+  spark-master:
+    image: airflow/spark-master
+    build: ./spark/master
+    container_name: spark-master
+    ports:
+      - "8082:8080"
+      - "7077:7077"
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+    networks:
+      - ndsnet
+
+  spark-worker:
+    image: airflow/spark-worker
+    build: ./spark/worker
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    ports:
+      - "8081:8081"
+    environment:
+      - "SPARK_MASTER=spark://spark-master:7077"
+    networks:
+      - ndsnet
+
+  metabase:
+    image: metabase/metabase:v0.52.8.4
+    restart: always
+    ports:
+      - 3000:3000
+    volumes:
+      - ./include/data/metabase:/metabase-data
+    networks:
+      - ndsnet
+
+  docker-proxy:
+    image: alpine/socat
+    command: "TCP4-LISTEN:2375,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock"
+    ports:
+      - "2376:2375"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - ndsnet
+
+networks:
+  ndsnet:
+    driver: bridge
